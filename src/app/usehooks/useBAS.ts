@@ -1,13 +1,12 @@
 "use client";
 
-import {BAS, SchemaEncoder, SchemaRegistry} from "@bnb-attestation-service/bas-sdk";
-import {GREEN_CHAIN_ID, GRPC_URL, greenFieldChain} from "../app.env";
+import {BAS, SchemaEncoder} from "@bnb-attestation-service/bas-sdk";
 import {hashMessage} from "viem";
 import {address} from "hardhat/internal/core/config/config-validation";
 import axios, {AxiosResponse} from "axios";
 import {Offchain} from "@ethereum-attestation-service/eas-sdk";
-import { GreenFieldClient } from "@bnb-attestation-service/bas-sdk/dist/greenFieldClient";
-
+import {GreenFieldClient} from "@bnb-attestation-service/bas-sdk/dist/greenFieldClient";
+import {CustomGreenFieldClient} from "./CustomGreenFieldClient";
 
 const base64ToHex = (base64: string) => {
     const raw = atob(base64);
@@ -42,6 +41,21 @@ export function encodeAddrToBucketName(addr: string) {
     return `bas-${hashMessage(addr).substring(2, 42)}`;
 };
 
+// BNB Greenfield Testnet:
+// networkName: BNB Greenfield Testnet
+// rpcUrl: https://gnfd-testnet-fullnode-tendermint-us.bnbchain.org
+// chainId: 5600
+// symbol: tBNB
+// chainScan: https://testnet.greenfieldscan.com
+// endpointUrl: https://gnfd-testnet-sp1.bnbchain.org
+//
+// BNB Greenfield Mainnet:
+// networkName: BNB Greenfield Mainnet
+// rpcUrl: https://greenfield-chain.bnbchain.org
+// chainId: 1017
+// symbol: BNB
+// chainScan: https://greenfieldscan.com
+// endpointUrl: https://greenfield-sp.bnbchain.org
 
 export const EASContractAddress = "0x620e84546d71A775A82491e1e527292e94a7165A"; //  BNB BAS
 
@@ -50,14 +64,18 @@ let bas: BAS;
 
 export const useBAS = () => {
 
-    let greenFieldClient: GreenFieldClient;
-    const initClient = async (address: any, chainId: any,rpcUrl: any) => {
-        bas = new BAS(EASContractAddress, rpcUrl, chainId);
-        greenFieldClient = bas.greenFieldClient
-        greenFieldClient.init(address,chainId)
-    }
-    const attestOffChainWithGreenFieldWithFixValue = async (address: any, provider: any, eip712MessageRawDataWithSignature: any, schemaUid: any) => {
+    let greenFieldClient: CustomGreenFieldClient;
+    let endpointUrlParam: string
+    const initClient = async (address: any, contractAddress: any, chainId: any, rpcUrl: any, endpointUrl: any) => {
+        bas = new BAS(contractAddress, rpcUrl, chainId);
         debugger
+        greenFieldClient = new CustomGreenFieldClient(rpcUrl,chainId)
+        bas.greenFieldClient = greenFieldClient
+        greenFieldClient.init(address, chainId)
+        endpointUrlParam = endpointUrl
+
+    }
+    const attestOffChainWithGreenFieldWithFixValue = async (address: any, provider: any, attestationInfo: any) => {
         if (!address) return;
         if (!bas) {
             console.log("please init client first")
@@ -66,7 +84,7 @@ export const useBAS = () => {
 
         const listBucketRes = await greenFieldClient.client.bucket.listBuckets({
             address: address,
-            endpoint: "https://gnfd-testnet-sp1.bnbchain.org"
+            endpoint: endpointUrlParam
         })
         let bucketExists = false;
         // @ts-ignore
@@ -90,30 +108,40 @@ export const useBAS = () => {
         BigInt.prototype.toJSON = function () {
             return this.toString();
         };
-
-        const str = JSON.stringify(eip712MessageRawDataWithSignature);
-        const bytes = new TextEncoder().encode(str);
-        const blob = new Blob([bytes], {
-            type: "application/json;charset=utf-8",
-        });
-        let objectInfo
+        let files =[]
+        let resp = []
+        for (let i = 0; i < attestationInfo.length; i++) {
+            const str = JSON.stringify(attestationInfo.eip712MessageRawDataWithSignature);
+            const bytes = new TextEncoder().encode(str);
+            const blob = new Blob([bytes], {
+                type: "application/json;charset=utf-8",
+            });
+            const attestationUid = await getAttestationUid(attestationInfo[i].eip712MessageRawDataWithSignature,attestationInfo[i].getDataTime)
+            files[i] = new File([blob], `${attestationInfo[i].schemaUid}.${attestationUid}`)
+            resp[i] = {
+                eip712MessageRawDataWithSignature:attestationInfo.eip712MessageRawDataWithSignature,
+                attestationUid:attestationUid
+            }
+        }
         const isPrivate = false
         try {
-            debugger
-            objectInfo = await greenFieldClient.createObject(
+            await greenFieldClient.createObjects(
                 provider,
-                new File([blob], `${schemaUid}.${eip712MessageRawDataWithSignature["uid"]}`),
+                files,
                 isPrivate
             );
         } catch (err: any) {
             if (err.statusCode === 404) {
                 return "notfound";
             }
+            if(err.message ==="repeated object"){
+                return "repeated object"
+            }
             console.log(err);
             alert(err.message);
         }
 
-        return {...eip712MessageRawDataWithSignature, objectInfo: objectInfo};
+        return resp;
     };
 
     const decodeHexData = (dataRaw: string, schemaStr: string) => {
@@ -145,7 +173,7 @@ export const useBAS = () => {
         // })
         const res = await greenFieldClient.client.bucket.listBuckets({
             address: address,
-            endpoint: "https://gnfd-testnet-sp1.bnbchain.org"
+            endpoint: endpointUrlParam
         })
 
         debugger
@@ -181,27 +209,28 @@ export const useBAS = () => {
         console.log(res)
     }
 
-    const getNewSignature = async () => {
+    const getAttestationUid = async (eip712MessageRawDataWithSignature: any, getDataTime: any)=>{
+        let param = eip712MessageRawDataWithSignature.message
+        param["time"] = getDataTime
+        // param["data"] = response.data.result.typeData
+        param["data"] = "0x" + param["data"]
+        return Offchain.getOffchainUID(param);
+    }
+
+    const getNewSignature = async (requestBody : any) => {
         const header = {
             "Authorization": "Bearer eyJhbGciOiJSUzI1NiJ9.eyJpc3MiOiJwYWRvbGFicy5vcmciLCJzdWIiOiIweGMxYTdGNmYzOTdkNUM3OTNhNzg2MTNDZjM2NGEwNjkxNDZkZDcxZjciLCJleHAiOjQ4NTM2MTgxNjcsInVzZXItaWQiOjE3MjQ2MjczMTIwOTczNjE5MjAsInNjb3BlIjoiYXV0aCJ9.MHRWNwh1v4PFrLrvkZrRJDmXdkVcIuKxf9Onu7UKLgHZcdSlWq6m8IV3Eq-wJjVwbBpv5zHh9jCh8uQG7GAFacVvwuUNAcquWS8xmK669ANQvSMerq6G0L2kv7iUWz6KEimq0M1btdphZuwIPDa3epHeTHRZJlDCo35gGRSV2qcoPgdoyidUKOMhSCdvPqs-df3r7Is32Xtrn3AvFPWAiQWwcW2rSnbv-5KCEMIGS7jcIXlwDIpm3-HfXsynwnbOfsLQ0WOExiXseObZHaAdTGu925Cv0c6L4TzXj9NmWPB201wgwg_KxqXFHcChCMBUbHW0ChN9xc1VqlkgfBjROg"
         }
         // const url = "https://api-dev.padolabs.org/credential/re-generate?newSigFormat=Verax-Scroll-Sepolia";
         const url = "https://api-dev.padolabs.org/credential/re-generate?newSigFormat=BAS-BSC-Testnet";
-        const body = JSON.parse("{\"rawParam\":{\"requestid\":\"eda20d37-3adb-4932-95a2-a2205a907e9d\",\"version\":null,\"credVersion\":\"0.2.11\",\"source\":\"GOOGLE\",\"baseName\":null,\"holdingToken\":null,\"baseUrl\":null,\"padoUrl\":null,\"proxyUrl\":null,\"cipher\":null,\"getDataTime\":\"1704419840652\",\"exchange\":null,\"sigFormat\":\"EAS-Ethereum\",\"schemaType\":\"GOOGLE_ACCOUNT_OWNER\",\"schema\":null,\"user\":{\"userid\":\"1724627312097361920\",\"address\":\"0x024e45d7f868c41f3723b13fd7ae03aa5a181362\",\"token\":null},\"baseValue\":null,\"greaterThanBaseValue\":null,\"sourceUseridHash\":\"25deb5f92761aa19e8f8b872f11a9e08b6b8d9bf58aef0365a0ccde9bb92eab9\",\"ext\":null,\"issuer\":null,\"did\":null},\"greaterThanBaseValue\":true,\"signature\":\"0x422d31e0517c5de6e73710537f0834c0b1336e6e1868527624ade50675da7b912a1208e2a0cf57c49198aacd368286a781a768170ed4d82567bebf6ee9f55eac1b\",\"newSigFormat\":\"BAS-BSC-Testnet\",\"sourceUseridHash\":\"25deb5f92761aa19e8f8b872f11a9e08b6b8d9bf58aef0365a0ccde9bb92eab9\"}")
+        const body = JSON.parse(requestBody)
         const response: AxiosResponse = await axios.post(url, body, {
             headers: header
         });
-        console.log(response.data.result.result.getDataTime)
-        let param = response.data.result.eip712MessageRawDataWithSignature.message
-        param["time"] = response.data.result.result.getDataTime
-        // param["data"] = response.data.result.typeData
-        param["data"] = "0x" + param["data"]
-        const uid = Offchain.getOffchainUID(param)
-        console.log(uid)
         let eip712MessageRawDataWithSignature = response.data.result.eip712MessageRawDataWithSignature
-        eip712MessageRawDataWithSignature["uid"] = uid
         return {
             eip712MessageRawDataWithSignature: eip712MessageRawDataWithSignature,
+            getDataTime: response.data.result.result.getDataTime,
             schemaUid: response.data.result.schemaUid
         }
     }
