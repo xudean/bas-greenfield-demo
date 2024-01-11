@@ -89,7 +89,6 @@ export default function Home() {
 
                         onClick={async () => {
                             let provider = await connector?.getProvider({chainId: 5600});
-                            debugger
                             try {
                                 await listBASBuckect(provider,address);
                                 setIsProcessing(false);

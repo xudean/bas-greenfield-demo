@@ -68,7 +68,6 @@ export const useBAS = () => {
     let endpointUrlParam: string
     const initClient = async (address: any, contractAddress: any, chainId: any, rpcUrl: any, endpointUrl: any) => {
         bas = new BAS(contractAddress, rpcUrl, chainId);
-        debugger
         greenFieldClient = new CustomGreenFieldClient(rpcUrl,chainId)
         bas.greenFieldClient = greenFieldClient
         greenFieldClient.init(address, chainId)
@@ -111,7 +110,6 @@ export const useBAS = () => {
         let files =[]
         let resp = []
         for (let i = 0; i < attestationInfo.length; i++) {
-            debugger
             const str = JSON.stringify(attestationInfo[i].eip712MessageRawDataWithSignature);
             const bytes = new TextEncoder().encode(str);
             const blob = new Blob([bytes], {
@@ -168,7 +166,6 @@ export const useBAS = () => {
             return
         }
         ;
-        debugger
         // const res = await greenFieldClient.client.bucket.getBucketMeta({
         //     bucketName: encodeAddrToBucketName(address)
         // })
@@ -177,7 +174,6 @@ export const useBAS = () => {
             endpoint: endpointUrlParam
         })
 
-        debugger
         let bucketExists = false;
         // @ts-ignore
         for (let bodyKey in res.body) {
@@ -195,7 +191,6 @@ export const useBAS = () => {
     };
 
     const createBASBuckect = async (provider: any, bucketName: string) => {
-        debugger
         if (!address) return;
         // await shouldSwitchNetwork(chains[0].id);
         const res = await greenFieldClient.createBucket(provider, bucketName);
@@ -204,7 +199,6 @@ export const useBAS = () => {
     };
 
     const createBASBuckectDefault = async (provider: any, address: any) => {
-        debugger
         if (!address) return;
         const res = await greenFieldClient.createBucket(provider, encodeAddrToBucketName(address));
         console.log(res)
