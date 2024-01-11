@@ -75,19 +75,27 @@ export class CustomGreenFieldClient extends GreenFieldClient {
         let allUploadRes = [];
 
         for (let i = 0; i < files.length; i++) {
-            const uploadRes = await this.client.object.uploadObject({
-                bucketName: encodeAddrToBucketName(this.address),
-                objectName: files[i].name,
-                body: files[i],
-                txnHash: transactionHash,
-            }, {
-                type: "EDDSA",
-                domain: window.location.origin,
-                seed: offChainData.seedString,
-                address: this.address,
-            });
-            console.log(uploadRes)
-            allUploadRes[i] = uploadRes
+            try {
+                debugger
+                const uploadRes = await this.client.object.uploadObject({
+                    bucketName: encodeAddrToBucketName(this.address),
+                    objectName: files[i].name,
+                    body: files[i],
+                    txnHash: transactionHash,
+                }, {
+                    type: "EDDSA",
+                    domain: window.location.origin,
+                    seed: offChainData.seedString,
+                    address: this.address,
+                });
+                console.log(uploadRes)
+                allUploadRes[i] = uploadRes
+            }catch (e){
+                if(e.message ==="repeated object"){
+                    console.log( `repeated object:${files[i].name}`)
+                }
+            }
+
         }
 
         return allUploadRes;

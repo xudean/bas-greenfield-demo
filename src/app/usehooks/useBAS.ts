@@ -111,7 +111,8 @@ export const useBAS = () => {
         let files =[]
         let resp = []
         for (let i = 0; i < attestationInfo.length; i++) {
-            const str = JSON.stringify(attestationInfo.eip712MessageRawDataWithSignature);
+            debugger
+            const str = JSON.stringify(attestationInfo[i].eip712MessageRawDataWithSignature);
             const bytes = new TextEncoder().encode(str);
             const blob = new Blob([bytes], {
                 type: "application/json;charset=utf-8",
@@ -119,7 +120,7 @@ export const useBAS = () => {
             const attestationUid = await getAttestationUid(attestationInfo[i].eip712MessageRawDataWithSignature,attestationInfo[i].getDataTime)
             files[i] = new File([blob], `${attestationInfo[i].schemaUid}.${attestationUid}`)
             resp[i] = {
-                eip712MessageRawDataWithSignature:attestationInfo.eip712MessageRawDataWithSignature,
+                eip712MessageRawDataWithSignature:attestationInfo[i].eip712MessageRawDataWithSignature,
                 attestationUid:attestationUid
             }
         }
