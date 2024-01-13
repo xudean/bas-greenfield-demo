@@ -2,6 +2,7 @@
 
 import {BAS, SchemaEncoder} from "@bnb-attestation-service/bas-sdk";
 import {hashMessage} from "viem";
+import {address} from "hardhat/internal/core/config/config-validation";
 import axios, {AxiosResponse} from "axios";
 import {Offchain} from "@ethereum-attestation-service/eas-sdk";
 import {GreenFieldClient} from "@bnb-attestation-service/bas-sdk/dist/greenFieldClient";
@@ -186,7 +187,7 @@ export const useBAS = () => {
     };
 
     const createBASBuckect = async (provider: any, bucketName: string) => {
-        if (!bucketName) return;
+        if (!address) return;
         // await shouldSwitchNetwork(chains[0].id);
         const res = await greenFieldClient.createBucket(provider, bucketName);
         console.log("create bucket res", res);
