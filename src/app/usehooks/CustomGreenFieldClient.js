@@ -50,12 +50,17 @@ export class CustomGreenFieldClient extends GreenFieldClient {
                 });
                 txss[i] = tx
             } catch (e) {
+                console.log(e)
                 if (e.message === "repeated object") {
                     console.log(`repeated object:${files[i].name}`)
                 }
             }
         }
         debugger
+        if(txss.length ===0){
+            console.log("all files are repeated")
+            return ;
+        }
 
         const txs = await this.client.txClient.multiTx(txss);
         const simulateInfo = await txs.simulate({
