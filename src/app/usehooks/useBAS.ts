@@ -103,10 +103,6 @@ export const useBAS = () => {
             const res = await createBASBuckect(provider, encodeAddrToBucketName(address));
             console.log("create bucket successfully!")
         }
-        //@ts-ignore
-        BigInt.prototype.toJSON = function () {
-            return this.toString();
-        };
         let files =[]
         let resp = []
         for (let i = 0; i < attestationInfo.length; i++) {

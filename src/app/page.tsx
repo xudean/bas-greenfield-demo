@@ -122,19 +122,6 @@ export default function Home() {
                         Create Bucket
                     </button>
 
-
-                    <button
-                        className="bg-[#FFA163] hover:bg-orange-700 text-white font-bold py-2 px-4 rounded"
-
-                        onClick={async () => {
-                            const res = await getNewSignature()
-                            console.log(JSON.stringify(res.data.result.eip712MessageRawDataWithSignature))
-                            console.log(JSON.stringify(res.data.result.schemaStr))
-                            localStorage.setItem("attestation", res.data.result)
-                        }}
-                    >
-                        Get New Signature
-                    </button>
                 </div>
             )}
         </main>
